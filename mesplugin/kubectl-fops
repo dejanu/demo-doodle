@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# the script should output 3 choices to user
+echo "1. Stateless ops" # create deployment
+echo "2. Statefull ops" # create statefulset
+echo "3. Push image"
+echo "4. Exit"
+echo "Please select an option (1-4):"
+read -r choice
+case $choice in
+    1)
+        # create tag for the image
+        IMAGE_TAG="dejanualex/gohello:2.3"
+
+        if docker build -t "$IMAGE_TAG" .; then
+            echo "Build succeeded. Pushing image..."
+            docker push "$IMAGE_TAG"
+        else
+            echo "Build failed. Skipping push."
+        fi
+
+        echo "Is the app running in cluster? (y/n)"
+        read -r is_running
+        if [[ $is_running == "y" ]]; then
+            # list the deployments for the user
+            kubectl get deployments -o custom-columns="Deployments:.metadata.name" --no-headers
+            echo "Please select a deployment to update:"
+            read -r deployment_name
+            # check if the deployment exists aka typo in deployment name
+            if kubectl get deployment "$deployment_name" > /dev/null 2>&1; then
+                echo "Deployment $deployment_name exists."
+                kubectl rollout status deployment/"$deployment_name"
+                echo "Update the deployment..."
+                kubectl set image deployment/gohello gohello="$IMAGE_TAG"
+                # wait for the deployment to be updated
+                kubectl rollout status deployment/gohello
+            else
+                echo "Deployment $deployment_name does not exist. Exiting..."
+                exit 1
+            fi
+        elif [[ $is_running == "n" ]]; then
+            # create kubernetes deployment based in IMAGE_TAG
+            echo "Creating Kubernetes deployment...gohello"
+            kubectl create deployment gohello --image="$IMAGE_TAG"
+            # wait for the deployment to be created
+            kubectl rollout status deployment/gohello
+        else
+            echo "Invalid option. Please select y or n."
+        fi
+
+        ;;
+    2)
+        echo "Building image..."
+        docker build -t dejanualex/gohello:1.1 .
+        ;;
+    3)
+        echo "Pushing image..."
+        # docker push dejanualex/gohello:1.1
+        ;;
+    4)
+        echo "Exiting..."
+        exit 0
+        ;;
+    *)
+        echo "Invalid option. Please select a valid option (1-4)."
+        ;;
+esac
+# Example usage:
+# ./kubectl-fops.sh
+
+
